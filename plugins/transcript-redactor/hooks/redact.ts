@@ -53,8 +53,16 @@ function guard(text: string, next: Budget): void {
 // Its placeholders stay placeholders: a commit message or an issue body that
 // quotes one must not carry the real key off the machine. The whole command
 // is left as written, so a step that needs the key goes in its own call.
+// fork-patch: glab and curl bodies publish too (GitLab, Jira, Teams webhooks). Any `glab` call counts: glab
+// reads its credentials from its own config, so a restored plaintext is never
+// needed there. `curl` counts only with a body or upload option (-d, --data*,
+// -F, --form*, --json, -T, --upload-file, also glued to the value or inside a
+// short cluster like -sd); `curl -H "Authorization: ..."` still gets the key.
 const PUBLISHES =
-  /\bgit\b(?:[ \t]+-[cC][ \t]+\S+|[ \t]+--?[\w-]+(?:=\S+)?)*[ \t]+(?:commit|tag|notes|send-email)\b|\bgh[ \t]+(?:issue|pr|release|gist|discussion|api|repo[ \t]+(?:create|edit))\b/
+  /\bgit\b(?:[ \t]+-[cC][ \t]+\S+|[ \t]+--?[\w-]+(?:=\S+)?)*[ \t]+(?:commit|tag|notes|send-email)\b|\bglab[ \t]+[a-z]|\bgh[ \t]+(?:issue|pr|release|gist|discussion|api|repo[ \t]+(?:create|edit))\b/
+const CURL = /\bcurl\b/
+const CURL_BODY = /(?:^|[ \t])(?:-[sSvkLiIfgGnNOJ#]*[dFT]|--(?:data[\w-]*|form[\w-]*|json|upload-file)\b)/
+const publishesCommand = (command: string): boolean => PUBLISHES.test(command) || (CURL.test(command) && CURL_BODY.test(command))
 
 // A restored value goes into Bash as shell source. One holding any of these
 // (quotes, $, backticks, separators, globs) could run as code there, so it is
@@ -108,7 +116,7 @@ export const register: Register = (on, options) => {
   //    result, the text the model reads and any attached context are scanned.
   on('tool.call', async ($, e, next) => {
     const command = (e as { command?: unknown }).command
-    const publishes = e.tool === 'Bash' && typeof command === 'string' && PUBLISHES.test(command)
+    const publishes = e.tool === 'Bash' && typeof command === 'string' && publishesCommand(command)
     const isLocal = cfg.restore && cfg.restoreTools.has(e.tool) && !publishes
     // The real values this call was handed. Whatever the tool prints of them
     // comes back hidden, even bare and short, where no detector would fire.

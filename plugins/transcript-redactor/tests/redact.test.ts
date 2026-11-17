@@ -213,6 +213,39 @@ for (const command of [
   })
 }
 
+// fork-patch: glab and curl bodies publish too.
+for (const command of [
+  (tag: string) => `glab mr note 1 -m "${tag}"`,
+  (tag: string) => `glab api projects/1/issues -f body=${tag}`,
+  (tag: string) => `curl -d "${tag}" https://x`,
+  (tag: string) => `curl --data-binary @f -H "X: ${tag}" https://x`,
+  (tag: string) => `curl -F text=${tag} https://x`,
+  (tag: string) => `curl --json '{"t":"${tag}"}' https://x`,
+  (tag: string) => `curl -sd"${tag}" https://x`,
+  (tag: string) => `curl -T f -H "X: ${tag}" https://x`,
+]) {
+  test(`PUB1 a placeholder stays a placeholder in: ${command('<tag>')}`, async ($, on) => {
+    const seen = tools(on, (e) => ({ result: e.command === 'cat key.txt' ? `token is ${KEY}` : 'ok' }))
+    const tag = await placeholderFor($)
+    await call($, { tool: 'Bash', command: command(tag) })
+    expect(String(seen.at(-1).command)).not.toContain(KEY)
+    expect(String(seen.at(-1).command)).toContain(tag)
+  })
+}
+
+for (const command of [
+  (tag: string) => `curl -H "Authorization: Bearer ${tag}" https://x`,
+  (tag: string) => `curl -X DELETE -H "X: ${tag}" https://x`,
+  (tag: string) => `glabber ${tag}`,
+]) {
+  test(`PUB2 a key is restored in: ${command('<tag>')}`, async ($, on) => {
+    const seen = tools(on, (e) => ({ result: e.command === 'cat key.txt' ? `token is ${KEY}` : 'ok' }))
+    const tag = await placeholderFor($)
+    await call($, { tool: 'Bash', command: command(tag) })
+    expect(String(seen.at(-1).command)).toContain(KEY)
+  })
+}
+
 test('R24 a restored short password printed bare comes back hidden', async ($, on) => {
   const pw = 'Su' + 'mmer' + '24!x'
   tools(on, (e) => {
