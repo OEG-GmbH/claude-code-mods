@@ -342,6 +342,42 @@ const ROUND_TRIP: string[] = [
   keep('ga cookie', 'Cookie: _ga=GA1.2.1234567890.1700000000')
   keep('word cookie', 'Cookie: theme=dark-mode-v2-enabled')
   keep('transcript session id', `{"sessionId":"${uuid()}","type":"user"}`)
+  // #39. The seed is put back after this block, so every fixture after it
+  // is the same as before these cases were added.
+  const seed39 = seed
+  // `sid` is a key name, and a session UUID after it is still an id.
+  keep('sid uuid env', `SID=${uuid()}`)
+  keep('prefixed sid uuid', `export X_SID=${uuid()}`)
+  keep('sid uuid yaml', `sid: ${uuid()}`)
+  keep('sid uuid json', `{"sid":"${uuid()}"}`)
+  keep('quoted sid uuid pair', `echo "SID=${uuid()}"`)
+  keep('quoted session_id uuid pair', `run('X_SESSION_ID=${uuid()}')`)
+  const g = lowerDigit(32)
+  hide('random sid value', `SID=${g}`, g)
+  const h = mixed(32)
+  hide('random sid json', `{"sid": "${h}"}`, h)
+  // A `sid` cookie is the session credential, UUID or not.
+  const k = uuid()
+  hide('sid uuid cookie', `Cookie: theme=dark; sid=${k}`, k)
+  const l = uuid()
+  hide('sid uuid set-cookie', `Set-Cookie: sid=${l}; Path=/; HttpOnly`, l)
+  const n = uuid()
+  hide('sid uuid curl cookie', `curl -b "sid=${n}" https://example.org/`, n)
+  // A low-entropy UUID the entropy rule alone lets through (#39 review).
+  const flat = ['1234', '5678'].join('') + '-1234-4567-8912-' + ['3456', '7891', '2345'].join('')
+  hide('low-entropy sid uuid cookie', `Cookie: sid=${flat}`, flat)
+  const flat2 = ['aaaa', '1111'].join('') + '-bbbb-2222-cccc-' + ['3333', 'dddd', '4444'].join('')
+  hide('low-entropy uuid in cookies.txt', `.example.org\tTRUE\t/\tTRUE\t0\tsession_token\t${flat2}`, flat2)
+  // A quoted cookie value ends the header capture at its quote.
+  const flat3 = ['abab', 'abab'].join('') + '-abab-4bab-abab-' + ['abab', 'abab', 'abab'].join('')
+  hide('low-entropy quoted sid uuid set-cookie', `Set-Cookie: sid="${flat3}"; Path=/; HttpOnly`, flat3)
+  const flat4 = ['0000', '0000'].join('') + '-0000-4000-8000-' + ['0000', '0000', '0001'].join('')
+  hide('low-entropy quoted uuid cookie, escaped', `{"h":"Cookie: a=b; session_token=\\"${flat4}\\""}`, flat4)
+  const i = uuid()
+  hide('uuid after a key name', `API_KEY=${i}`, i)
+  const j = uuid()
+  hide('quoted uuid pair after a key name', `echo "API_KEY=${j}"`, j)
+  seed = seed39
 }
 
 // 19. A named key with word parts in front.
@@ -800,11 +836,18 @@ for (const text of ROUND_TRIP) {
   const root = new URL('../../', import.meta.url)
   const pairs = [
     ['secret-box/hooks/detect.ts', 'transcript-redactor/hooks/detect.ts'],
+    ['secret-box/hooks/redact.ts', 'transcript-redactor/hooks/redact.ts'],
     ['secret-box/tests/detect.test.mts', 'transcript-redactor/test/detect.test.mts'],
   ]
   for (const [x, y] of pairs) {
     const [fx, fy] = [new URL(x!, root), new URL(y!, root)]
     if (existsSync(fx) && existsSync(fy) && readFileSync(fx, 'utf8') !== readFileSync(fy, 'utf8')) fail(`COPY  ${x} and ${y} differ`)
+  }
+  // The settings that configure the detector are the same in both manifests.
+  const [mx, my] = ['secret-box', 'transcript-redactor'].map((m) => new URL(`${m}/.claude-plugin/plugin.json`, root))
+  if (existsSync(mx) && existsSync(my)) {
+    const settings = (u: URL) => JSON.stringify(JSON.parse(readFileSync(u, 'utf8')).userConfig)
+    if (settings(mx!) !== settings(my!)) fail('COPY  the userConfig of secret-box and transcript-redactor differ')
   }
 }
 
