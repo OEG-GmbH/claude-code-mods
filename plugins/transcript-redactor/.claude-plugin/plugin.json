@@ -1,7 +1,11 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "transcript-redactor",
+<<<<<<< HEAD
   "version": "0.5.3-fork.1",
+=======
+  "version": "0.5.4",
+>>>>>>> 5bf5d5f6d078f4f81f91699d483fc3b4021ac443
   "description": "Keeps secrets and email addresses out of the session transcript: swaps each one for a stable placeholder on the way in, and puts the real value back on the way into a tool call",
   "author": {
     "name": "Ray Amjad",
